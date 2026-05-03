@@ -334,6 +334,31 @@ Según `docker-compose.yml`:
 
 > **Importante:** cambia estas credenciales antes de usar el proyecto en un entorno real.
 
+## Requisitos previos externos
+
+Antes de levantar el proyecto necesitas contar con lo siguiente:
+
+### OpenWeather API Key
+
+El workflow de ingestión climática en **n8n** utiliza el servicio de OpenWeatherMap. Para que funcione correctamente:
+
+1. Crea una cuenta gratuita en [https://openweathermap.org/](https://openweathermap.org/)
+2. Ve a tu perfil → **API keys**
+3. Copia tu API key personal
+4. Reemplázala en una de estas ubicaciones antes de levantar los servicios:
+   - En `docker-compose.yml` (línea de `OPENWEATHER_API_KEY`)
+   - O en un archivo `.env` local que sobreescriba la variable
+
+> **Importante:** la API key por defecto en el repositorio es un placeholder (`your-openweather-api-key`). Sin una key válida, el workflow de clima no podrá obtener datos meteorológicos reales.
+
+### Otros secretos recomendados a cambiar
+
+Aunque el proyecto levanta con los valores por defecto, en un entorno real deberías cambiar:
+
+- `JWT_SECRET` en `backend/.env`
+- `WORKFLOW_SECRET` en `docker-compose.yml` o en un `.env` local
+- Credenciales de PostgreSQL en `docker-compose.yml`
+
 ## Instalación recomendada con Docker
 
 Esta es la forma más rápida y confiable para levantar el proyecto en otra computadora.
@@ -364,19 +389,27 @@ git clone https://github.com/Dan101111111/agricultura-precision.git
 cd agricultura-precision
 ```
 
-#### 3. Levantar todos los servicios
+#### 3. Configurar tu API key de OpenWeather (obligatorio para clima)
+
+Edita `docker-compose.yml` o crea un archivo `.env` en la raíz:
+
+```env
+OPENWEATHER_API_KEY=tu-api-key-de-openweathermap
+```
+
+#### 4. Levantar todos los servicios
 
 ```bash
 docker compose up -d --build
 ```
 
-#### 4. Verificar los contenedores
+#### 5. Verificar los contenedores
 
 ```bash
 docker compose ps
 ```
 
-#### 5. Abrir la aplicación
+#### 6. Abrir la aplicación
 
 - **Frontend:** `http://localhost:3000`
 - **Backend:** `http://localhost:3001`
@@ -396,6 +429,8 @@ Además, PostgreSQL carga `init.sql` en el primer arranque del volumen.
 ## Instalación manual sin Docker
 
 > **Nota:** este camino requiere más configuración. Si buscas rapidez y menos fricción, usa Docker.
+>
+> **Recuerda:** configura tu `OPENWEATHER_API_KEY` antes de ejecutar workflows de clima en n8n.
 
 ### Requisitos
 
@@ -407,6 +442,20 @@ Además, PostgreSQL carga `init.sql` en el primer arranque del volumen.
   - `postgis`
 - **Redis 7**
 - **n8n**
+
+### 0. Configurar variables de entorno
+
+Crea `backend/.env` basado en `backend/.env.example`:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Edita `backend/.env` y añade al menos:
+
+- `OPENWEATHER_API_KEY` (obligatorio para clima)
+- `JWT_SECRET` (cámbialo en producción)
+- `WORKFLOW_SECRET` (cámbialo en producción)
 
 ### 1. Base de datos
 

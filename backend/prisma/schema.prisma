@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Rol {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre      String   @unique @db.VarChar(50)
+  descripcion String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  usuarios Usuario[]
+
+  @@map("rol")
+}
+
+model Usuario {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  nombre       String    @db.VarChar(100)
+  apellido     String    @db.VarChar(100)
+  telefono     String?   @db.VarChar(20)
+  rolId        String    @map("rol_id") @db.Uuid
+  activo       Boolean   @default(true)
+  ultimoAcceso DateTime? @map("ultimo_acceso") @db.Timestamp(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  rol      Rol      @relation(fields: [rolId], references: [id])
+  fincas   Finca[]
+  reportes Reporte[]
+  alertas  Alerta[]
+
+  @@map("usuario")
+}
+
+model Finca {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre        String   @db.VarChar(100)
+  ubicacion     String?  @db.VarChar(255)
+  areaHectareas Decimal? @map("area_hectareas") @db.Decimal(10, 2)
+  coordenadas   Json?
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  lotes   Lote[]
+
+  @@map("finca")
+}
+
+model Lote {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre             String   @db.VarChar(100)
+  areaHectareas      Decimal? @map("area_hectareas") @db.Decimal(10, 2)
+  tipoSuelo          String?  @map("tipo_suelo") @db.VarChar(50)
+  coordenadasPoligono Json?   @map("coordenadas_poligono")
+  fincaId            String   @map("finca_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  finca         Finca                    @relation(fields: [fincaId], references: [id])
+  temporadas    Temporada[]
+  sensores      Sensor[]
+  eventosRiego  EventoRiego[]
+  predicciones  PrediccionRendimiento[]
+  alertas       Alerta[]
+
+  @@map("lote")
+}
+
+model Cultivo {
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nombre               String   @db.VarChar(100)
+  variedad             String?  @db.VarChar(100)
+  cicloDias            Int?     @map("ciclo_dias")
+  requerimientoAguaMm  Decimal? @map("requerimiento_agua_mm") @db.Decimal(5, 2)
+  temperaturaOptima    Decimal? @map("temperatura_optima") @db.Decimal(4, 1)
+  humedadOptima        Int?     @map("humedad_optima")
+
+  temporadas Temporada[]
+
+  @@map("cultivo")
+}
+
+model Temporada {
+  id                   String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cultivoId            String    @map("cultivo_id") @db.Uuid
+  loteId               String    @map("lote_id") @db.Uuid
+  fechaSiembra         DateTime  @map("fecha_siembra") @db.Date
+  fechaCosechaEstimada DateTime? @map("fecha_cosecha_estimada") @db.Date
+  fechaCosechaReal     DateTime? @map("fecha_cosecha_real") @db.Date
+  estado               String    @default("activo") @db.VarChar(20)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  cultivo      Cultivo                  @relation(fields: [cultivoId], references: [id])
+  lote         Lote                     @relation(fields: [loteId], references: [id])
+  predicciones PrediccionRendimiento[]
+
+  @@unique([loteId, fechaSiembra])
+  @@map("temporada")
+}
+
+model Sensor {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  codigo              String    @unique @db.VarChar(50)
+  tipo                String    @db.VarChar(50)
+  ubicacion           Json?
+  loteId              String?   @map("lote_id") @db.Uuid
+  instaladoEn         DateTime  @default(now()) @map("instalado_en") @db.Timestamp(6)
+  ultimoMantenimiento DateTime? @map("ultimo_mantenimiento") @db.Timestamp(6)
+  activo              Boolean   @default(true)
+
+  lote     Lote?          @relation(fields: [loteId], references: [id])
+  lecturas LecturaSensor[]
+
+  @@map("sensor")
+}
+
+model LecturaSensor {
+  id                  String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sensorId            String   @map("sensor_id") @db.Uuid
+  timestamp           DateTime @db.Timestamp(6)
+  temperatura         Decimal? @db.Decimal(4, 1)
+  humedadSuelo        Int?     @map("humedad_suelo")
+  humedadAmbiente     Int?     @map("humedad_ambiente")
+  precipitacion       Decimal? @db.Decimal(5, 1)
+  radiacionSolar      Decimal? @map("radiacion_solar") @db.Decimal(7, 1)
+  velocidadViento     Decimal? @map("velocidad_viento") @db.Decimal(5, 2)
+  presionAtmosferica  Decimal? @map("presion_atmosferica") @db.Decimal(6, 2)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  sensor Sensor @relation(fields: [sensorId], references: [id])
+
+  @@index([timestamp])
+  @@map("lectura_sensor")
+}
+
+model EventoRiego {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  loteId           String   @map("lote_id") @db.Uuid
+  fechaHora        DateTime @map("fecha_hora") @db.Timestamp(6)
+  duracionMinutos  Int      @map("duracion_minutos")
+  volumenM3        Decimal? @map("volumen_m3") @db.Decimal(10, 2)
+  tipoRiego        String   @map("tipo_riego") @db.VarChar(20)
+  origenDecision   String   @map("origen_decision") @db.VarChar(50)
+  eficiencia       Decimal? @db.Decimal(3, 2)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  lote Lote @relation(fields: [loteId], references: [id])
+
+  @@index([fechaHora])
+  @@map("evento_riego")
+}
+
+model PrediccionRendimiento {
+  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  loteId                    String   @map("lote_id") @db.Uuid
+  temporadaId               String   @map("temporada_id") @db.Uuid
+  fechaPrediccion           DateTime @map("fecha_prediccion") @db.Date
+  rendimientoEstimadoKgHa   Decimal? @map("rendimiento_estimado_kg_ha") @db.Decimal(10, 2)
+  intervaloConfianzaInf     Decimal? @map("intervalo_confianza_inf") @db.Decimal(10, 2)
+  intervaloConfianzaSup     Decimal? @map("intervalo_confianza_sup") @db.Decimal(10, 2)
+  factoresInfluencia        Json?    @map("factores_influencia")
+  modeloUtilizado           String?  @map("modelo_utilizado") @db.VarChar(100)
+  precisionModelo           Decimal? @map("precision_modelo") @db.Decimal(4, 3)
+  createdAt                 DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  lote      Lote      @relation(fields: [loteId], references: [id])
+  temporada Temporada @relation(fields: [temporadaId], references: [id])
+
+  @@index([fechaPrediccion])
+  @@map("prediccion_rendimiento")
+}
+
+model WorkflowEjecucion {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workflowNombre   String    @map("workflow_nombre") @db.VarChar(100)
+  inicioEjecucion  DateTime  @map("inicio_ejecucion") @db.Timestamp(6)
+  finEjecucion     DateTime? @map("fin_ejecucion") @db.Timestamp(6)
+  estado           String    @default("ejecutando") @db.VarChar(20)
+  parametrosEntrada Json?    @map("parametros_entrada")
+  resultadoSalida  Json?     @map("resultado_salida")
+  errorMensaje     String?   @map("error_mensaje")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  reportes Reporte[]
+
+  @@map("workflow_ejecucion")
+}
+
+model Reporte {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId           String    @map("usuario_id") @db.Uuid
+  workflowEjecucionId String?   @map("workflow_ejecucion_id") @db.Uuid
+  tipo                String    @db.VarChar(50)
+  formato             String    @default("pdf") @db.VarChar(20)
+  urlArchivo          String?   @map("url_archivo") @db.VarChar(500)
+  parametrosFiltros   Json?     @map("parametros_filtros")
+  tamanioBytes        Int?      @map("tamanio_bytes")
+  generadoEn          DateTime  @default(now()) @map("generado_en") @db.Timestamp(6)
+  descargadoEn        DateTime? @map("descargado_en") @db.Timestamp(6)
+
+  usuario           Usuario            @relation(fields: [usuarioId], references: [id])
+  workflowEjecucion WorkflowEjecucion? @relation(fields: [workflowEjecucionId], references: [id])
+
+  @@map("reporte")
+}
+
+model Alerta {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  usuarioId    String    @map("usuario_id") @db.Uuid
+  loteId       String?   @map("lote_id") @db.Uuid
+  tipo         String    @db.VarChar(50)
+  severidad    String    @db.VarChar(20)
+  mensaje      String    @db.Text
+  datosContexto Json?    @map("datos_contexto")
+  leida        Boolean   @default(false)
+  creadaEn     DateTime  @default(now()) @map("creada_en") @db.Timestamp(6)
+  leidaEn      DateTime? @map("leida_en") @db.Timestamp(6)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  lote    Lote?    @relation(fields: [loteId], references: [id])
+
+  @@index([usuarioId, leida])
+  @@map("alerta")
+}

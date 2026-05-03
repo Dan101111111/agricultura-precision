@@ -1,0 +1,207 @@
+{
+  "name": "Ingesta de Datos Climáticos",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "087c4007-66a8-4730-b3ac-ce1613f076ac"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "climate-ingest",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        0,
+        180
+      ],
+      "typeVersion": 2,
+      "id": "51bbdfca-9d68-44ef-98af-44ff1a80f4dc"
+    },
+    {
+      "parameters": {
+        "values": {
+          "number": [
+            {
+              "name": "lat",
+              "value": "={{ Number($json.lat ?? $json.latitude ?? -8.1159) }}"
+            },
+            {
+              "name": "lon",
+              "value": "={{ Number($json.lon ?? $json.lng ?? $json.longitude ?? -79.03) }}"
+            }
+          ],
+          "string": [
+            {
+              "name": "sensor_id",
+              "value": "={{ $json.sensor_id ?? $json.sensorId ?? 'c491ccfe-2a47-4da1-a083-4582631bf33e' }}"
+            }
+          ],
+          "boolean": []
+        },
+        "options": {}
+      },
+      "name": "Set Coordinates",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        208,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "20a6ab66-5e3d-473b-81b6-fe5f79684fa6"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "options": {},
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "lat",
+              "value": "={{$json.lat}}"
+            },
+            {
+              "name": "lon",
+              "value": "={{$json.lon}}"
+            },
+            {
+              "name": "appid",
+              "value": "33b7baf6ffc8177837d5e8534a47f0f3"
+            }
+          ]
+        }
+      },
+      "name": "OpenWeatherMap API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        400,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "70921d6d-d2f2-454b-ae4f-bccde7bf8e2e",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nreturn {\n  sensor_id: data.sensor_id || data.sensorId || 'c491ccfe-2a47-4da1-a083-4582631bf33e',\n  timestamp: new Date().toISOString(),\n  temperatura: data.main.temp - 273.15,\n  humedad_ambiente: data.main.humidity,\n  precipitacion: data.rain ? data.rain['1h'] || 0 : 0,\n  velocidad_viento: data.wind.speed,\n  presion_atmosferica: data.main.pressure\n};"
+      },
+      "name": "Transform Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        608,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "99d8e75c-52b9-4915-812b-a446e90f3193"
+    },
+    {
+      "parameters": {
+        "table": "lectura_sensor",
+        "columns": "sensor_id,timestamp,temperatura,humedad_ambiente,precipitacion,velocidad_viento,presion_atmosferica",
+        "additionalFields": {}
+      },
+      "name": "PostgreSQL Insert",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        800,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "95bd44fc-7b40-4f3e-b74c-9c7db53c9811",
+      "credentials": {
+        "postgres": {
+          "id": "X0QkNzMQMcWM2uPq",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Coordinates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Coordinates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Coordinates": {
+      "main": [
+        [
+          {
+            "node": "OpenWeatherMap API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenWeatherMap API": {
+      "main": [
+        [
+          {
+            "node": "Transform Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Data": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "67ea5954-e519-4981-96eb-7a1f5db3dcb0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "50c4830a131d436fb3d8878c2e73756b1da8f401abe81fbadba814bb73938886"
+  },
+  "id": "TBeMqVouHkRKwt9K",
+  "tags": []
+}

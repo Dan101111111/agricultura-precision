@@ -1,0 +1,65 @@
+{
+  "name": "Predicción de Rendimiento",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "5102e19f-26f2-45a6-a8e8-f1c5cec081d5"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://backend:3001/automation/workflows/predictions/run?secret=workflow_secret_local_2026",
+        "options": {}
+      },
+      "name": "Trigger Predictions Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        272,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "24923819-b3bb-4427-93d0-f3d1e5a115c6"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Trigger Predictions Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "59584ac2-afbc-4f74-bc4b-6c639cf634c9",
+  "meta": {
+    "instanceId": "50c4830a131d436fb3d8878c2e73756b1da8f401abe81fbadba814bb73938886"
+  },
+  "id": "mP3yJpkE0kNvemjp",
+  "tags": []
+}

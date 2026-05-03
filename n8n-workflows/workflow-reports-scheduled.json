@@ -1,0 +1,64 @@
+{
+  "name": "Generación de Reportes",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "30195c27-b1bd-4768-b7e1-916ab13001d2"
+    },
+    {
+      "parameters": {
+        "requestMethod": "POST",
+        "url": "http://backend:3001/automation/workflows/reports/run?periodo=semanal&secret=workflow_secret_local_2026",
+        "options": {}
+      },
+      "name": "Trigger Reports Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        272,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "36a93eea-af15-4ca9-a4ef-6166675a493b"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Trigger Reports Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4015ac1d-d716-4582-b7dc-c4055a2986d9",
+  "meta": {
+    "instanceId": "50c4830a131d436fb3d8878c2e73756b1da8f401abe81fbadba814bb73938886"
+  },
+  "id": "7lYK4hxzqWdDpocm",
+  "tags": []
+}

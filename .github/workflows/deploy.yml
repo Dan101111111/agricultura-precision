@@ -46,6 +46,19 @@ jobs:
       - name: Install browser dependencies
         run: npx playwright install --with-deps chromium
 
+      - name: Wait for backend
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3001 >/dev/null; then
+              echo "Backend listo"
+              exit 0
+            fi
+            echo "Esperando backend..."
+            sleep 5
+          done
+          echo "Backend no disponible a tiempo"
+          exit 1
+
       - name: Wait for frontend
         run: |
           for i in {1..30}; do

@@ -10,22 +10,23 @@ test.describe('Dashboard E2E', () => {
   });
 
   test('muestra métricas principales del dashboard', async ({ page }) => {
+    const main = page.getByRole('main')
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByText('Fincas')).toBeVisible();
-    await expect(page.getByText('Lotes')).toBeVisible();
-    await expect(page.getByText('Alertas sin leer')).toBeVisible();
-    await expect(page.getByText('Eficiencia riego')).toBeVisible();
+    await expect(main.getByText('Alertas sin leer', { exact: true })).toBeVisible();
+    await expect(main.getByText('Eficiencia riego', { exact: true })).toBeVisible();
+    await expect(main.getByRole('link', { name: 'Fincas', exact: true })).toBeVisible();
+    await expect(main.getByRole('link', { name: 'Ver Alertas', exact: true })).toBeVisible();
   });
 
   test('navega a reportes y muestra historial', async ({ page }) => {
-    await page.getByRole('link', { name: 'Reportes' }).click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Reportes', exact: true }).click();
     await expect(page).toHaveURL('**/reportes');
-    await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reportes más visuales, descriptivos y listos para descargar' })).toBeVisible();
     await expect(page.getByText('Historial de reportes')).toBeVisible();
   });
 
   test('navega a alertas', async ({ page }) => {
-    await page.getByRole('link', { name: 'Alertas' }).click();
+    await page.getByRole('navigation').getByRole('link', { name: 'Alertas', exact: true }).click();
     await expect(page).toHaveURL('**/alertas');
     await expect(page.getByRole('heading', { name: 'Alertas' })).toBeVisible();
   });

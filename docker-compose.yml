@@ -51,7 +51,7 @@ services:
       N8N_SECURE_COOKIE: "false"
       BACKEND_INTERNAL_URL: http://backend:3001
       WORKFLOW_SECRET: workflow_secret_local_2026
-      OPENWEATHER_API_KEY: "your-openweather-api-key"
+      OPENWEATHER_API_KEY: "${OPENWEATHER_API_KEY:-your-openweather-api-key}"
     ports:
       - "5678:5678"
     restart: unless-stopped
@@ -83,6 +83,9 @@ services:
       ML_SERVICE_URL: http://ml-service:5000
       N8N_WEBHOOK_URL: http://n8n:5678/webhook
       N8N_CLIMATE_WEBHOOK_URL: http://n8n:5678/webhook/climate-ingest
+      N8N_API_URL: http://n8n:5678
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: admin123
       WORKFLOW_SECRET: workflow_secret_local_2026
     ports:
       - "3001:3001"

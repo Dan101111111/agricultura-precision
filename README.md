@@ -288,6 +288,9 @@ ML_SERVICE_URL=http://ml-service:5000
 OPENWEATHER_API_KEY=replace-with-your-key
 N8N_WEBHOOK_URL=http://n8n:5678/webhook
 N8N_CLIMATE_WEBHOOK_URL=http://n8n:5678/webhook/climate-ingest
+N8N_API_URL=http://n8n:5678
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=admin123
 WORKFLOW_SECRET=workflow_secret_local_2026
 NEXT_PUBLIC_API_URL=http://localhost:3001
 SMTP_HOST=smtp.gmail.com
@@ -526,6 +529,66 @@ Levanta n8n y configura:
 - `BACKEND_INTERNAL_URL`
 - importación de workflows desde `n8n-workflows/`
 
+> En versiones recientes de n8n, el botón principal es **Publish** (en lugar de un toggle `Active` visible).  
+> Si un workflow está **Published**, queda habilitado para recibir webhooks.
+
+Al ingresar por primera vez a `http://localhost:5678/`, n8n pedirá crear la cuenta local del administrador.
+
+Usa estos datos por comodidad en entorno local:
+
+- **Email:** `admin@agricultura.local`
+- **First Name:** `Admin`
+- **Last Name:** `AgriPrecision`
+- **Password:** `AdminN8n2026!`
+
+Después del setup inicial:
+
+- importa los workflows desde `n8n-workflows/`
+- verifica que `WORKFLOW_SECRET` y `BACKEND_INTERNAL_URL` estén configurados por Docker
+- crea las credenciales de PostgreSQL para el nodo final del workflow de ingesta climática
+
+#### Checklist recomendado (primera vez)
+
+1. Crear o validar al menos 1 sensor en la web (`/sensores`) antes de probar ingesta.
+2. Importar `workflow-climate-ingest.json` desde la carpeta `n8n-workflows/`.
+3. Abrir el workflow y confirmar:
+   - **Webhook Trigger**: método `POST`, path `climate-ingest`.
+   - **Set Coordinates**: toma `sensor_id` desde payload, incluyendo formato plano y `body`.
+   - **Transform Data**: no usa UUID hardcodeado como fallback.
+   - **PostgreSQL Insert**: apunta a `agricultura_db`.
+4. Presionar **Publish** en n8n.
+5. Probar desde la web con **Actualizar lecturas** en `/sensores`.
+
+#### Importante sobre el webhook de clima
+
+- Endpoint esperado: `POST /webhook/climate-ingest`
+- El backend envía por sensor: `sensor_id`, `lat`, `lon`, `sensorCode`, `sensorType`, `loteId`, `userId`.
+- Si ejecutas manualmente desde n8n sin payload, puede faltar `sensor_id` y fallará la inserción en `lectura_sensor`.
+- Prueba manual mínima con body:
+
+```json
+{
+  "sensor_id": "56469e31-eb64-44d0-a2b4-837dbeaf8449",
+  "lat": -8.1159,
+  "lon": -79.03
+}
+```
+
+En el workflow de ingesta climática, en el nodo PostgreSQL, crea una credencial nueva con:
+
+- **Host:** `postgres`
+- **Port:** `5432`
+- **Database:** `agricultura_db`
+- **User:** `admin`
+- **Password:** `secure_password`
+
+Para una prueba manual rápida:
+
+- crea primero el sensor desde la aplicación
+- vuelve a importar o actualizar el workflow de ingesta
+- prueba el flujo desde la app con **Actualizar lecturas** o usa un `sensor_id` válido al ejecutar manualmente
+- confirma que aparezcan filas nuevas en `lectura_sensor`
+
 ## Workflows incluidos
 
 Archivos disponibles en `n8n-workflows/`:
@@ -637,12 +700,39 @@ Actualmente el proyecto cuenta con:
 - verifica `WORKFLOW_SECRET`
 - revisa `N8N_WEBHOOK_URL` y `N8N_CLIMATE_WEBHOOK_URL`
 - comprueba que `n8n` esté accesible en `5678`
+- confirma que el workflow `workflow-climate-ingest` esté importado en n8n
+- confirma que el workflow esté **Published**
+- valida que el nodo PostgreSQL use la base `agricultura_db` y no otra distinta
+- verifica que la credencial del nodo PostgreSQL apunte al host `postgres` (si usas Docker Compose)
+- prueba primero desde la web (`/sensores` -> **Actualizar lecturas**) para enviar payload completo
 
 ### El backend no conecta a la base de datos
 
 - valida `DATABASE_URL`
 - confirma que PostgreSQL esté arriba
 - revisa que las extensiones `uuid-ossp` y `postgis` existan
+
+### Error de foreign key en `lectura_sensor`
+
+Si aparece un error como:
+
+- `insert or update on table "lectura_sensor" violates foreign key constraint "lectura_sensor_sensor_id_fkey"`
+
+significa que el workflow intentó insertar una lectura con un `sensor_id` que no existe en la tabla `sensor`.
+
+Esto suele pasar cuando:
+
+- la base de datos fue recreada en otra máquina y cambió el conjunto de sensores disponibles
+- se ejecuta el workflow manualmente sin haber creado sensores antes
+- el workflow conserva un `sensor_id` viejo usado como valor por defecto en pruebas anteriores
+- el workflow recibe el payload en `body` y la expresión solo intenta leer `$json.sensor_id`
+
+Recomendación:
+
+- crea primero el sensor desde la aplicación
+- vuelve a importar o actualizar el workflow de ingesta
+- prueba el flujo desde la app con **Actualizar lecturas** o usa un `sensor_id` válido al ejecutar manualmente
+- evita UUID hardcodeados como fallback en `Set Coordinates` y `Transform Data`
 
 ### El ML Service falla
 

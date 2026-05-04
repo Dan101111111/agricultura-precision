@@ -18,6 +18,7 @@ const KNOWN_WORKFLOWS = [
 ] as const;
 
 const ALLOWED_REPORT_PERIODS = ['diario', 'semanal', 'mensual'] as const;
+const CLIMATE_WORKFLOW_WEBHOOK_PATH = 'climate-ingest';
 
 @Injectable()
 export class AutomationService {
@@ -335,6 +336,7 @@ export class AutomationService {
     const workflowSecretConfigured = Boolean(process.env.WORKFLOW_SECRET?.trim());
     const climateWebhookUrl = this.tryGetClimateWebhookUrl();
     const climateWebhookConfigured = Boolean(climateWebhookUrl);
+    const climateWorkflowStatus = await this.getClimateWorkflowStatus();
     const summary = executions.reduce(
       (acc, execution) => {
         acc.total += 1;
@@ -354,11 +356,12 @@ export class AutomationService {
       ),
     }));
 
+    const latestStatus = executions[0]?.estado;
     const systemStatus = !workflowSecretConfigured || !climateWebhookConfigured
       ? 'sin_configurar'
-      : executions.some((execution) => execution.estado === 'fallido' || execution.estado === 'parcial')
+      : climateWorkflowStatus.detected === false || climateWorkflowStatus.active === false
         ? 'atencion'
-        : executions.some((execution) => execution.estado === 'ejecutando')
+        : latestStatus === 'ejecutando'
           ? 'ejecutando'
           : 'activo';
 
@@ -367,6 +370,10 @@ export class AutomationService {
         workflowSecretConfigured,
         climateWebhookConfigured,
         climateWebhookUrl,
+        climateWorkflowDetected: climateWorkflowStatus.detected,
+        climateWorkflowActive: climateWorkflowStatus.active,
+        climateWorkflowName: climateWorkflowStatus.name,
+        n8nStatusError: climateWorkflowStatus.error,
       },
       summary,
       systemStatus,
@@ -374,6 +381,111 @@ export class AutomationService {
       workflows,
       recentExecutions: executions.slice(0, 5).map((execution) => this.serializeExecution(execution)),
     };
+  }
+
+  private async getClimateWorkflowStatus(): Promise<{
+    detected: boolean | null;
+    active: boolean | null;
+    name: string | null;
+    error: string | null;
+  }> {
+    const baseUrl = this.tryGetN8nApiBaseUrl();
+    if (!baseUrl) {
+      return {
+        detected: null,
+        active: null,
+        name: null,
+        error: 'No se pudo resolver la URL base de n8n',
+      };
+    }
+
+    try {
+      const response = await axios.get(`${baseUrl}/api/v1/workflows`, {
+        timeout: 10000,
+        auth: this.tryGetN8nBasicAuth(),
+        headers: this.tryGetN8nApiHeaders(),
+      });
+      const workflows = this.extractWorkflows(response.data);
+      const workflow = workflows.find((item) => this.isClimateIngestWorkflow(item));
+      if (!workflow) {
+        return {
+          detected: false,
+          active: null,
+          name: null,
+          error: null,
+        };
+      }
+
+      return {
+        detected: true,
+        active: this.extractWorkflowActive(workflow),
+        name: typeof workflow.name === 'string' ? workflow.name : null,
+        error: null,
+      };
+    } catch (error: any) {
+      const webhookProbe = await this.probeClimateWebhookStatus();
+      if (webhookProbe.detected !== null || webhookProbe.active !== null) {
+        return {
+          detected: webhookProbe.detected,
+          active: webhookProbe.active,
+          name: null,
+          error: webhookProbe.error,
+        };
+      }
+      return {
+        detected: null,
+        active: null,
+        name: null,
+        error: error?.response?.status
+          ? `No se pudo consultar n8n (HTTP ${error.response.status})`
+          : 'No se pudo consultar n8n',
+      };
+    }
+  }
+
+  private async probeClimateWebhookStatus(): Promise<{
+    detected: boolean | null;
+    active: boolean | null;
+    error: string | null;
+  }> {
+    const webhookUrl = this.tryGetClimateWebhookUrl();
+    if (!webhookUrl) {
+      return { detected: null, active: null, error: null };
+    }
+
+    try {
+      const response = await axios.get(webhookUrl, {
+        validateStatus: () => true,
+        timeout: 8000,
+      });
+      const rawMessage = response?.data?.message;
+      const message = typeof rawMessage === 'string' ? rawMessage.toLowerCase() : '';
+
+      if (response.status >= 200 && response.status < 300) {
+        return { detected: true, active: true, error: null };
+      }
+      if (response.status === 405) {
+        return { detected: true, active: true, error: null };
+      }
+      if (response.status === 404 && message.includes('not registered for get requests')) {
+        return { detected: true, active: true, error: null };
+      }
+      if (response.status === 404 && message.includes('not registered')) {
+        return { detected: false, active: false, error: null };
+      }
+
+      return {
+        detected: null,
+        active: null,
+        error: `No se pudo verificar el webhook climático (HTTP ${response.status})`,
+      };
+    } catch {
+      return {
+        detected: null,
+        active: null,
+        error: 'No se pudo verificar el webhook climático',
+      };
+    }
   }
 
   private getClimateWebhookUrl() {
@@ -525,6 +637,90 @@ export class AutomationService {
       return this.normalizeUrl(`${generic}/climate-ingest`);
     }
     return this.normalizeUrl('http://n8n:5678/webhook/climate-ingest');
+  }
+
+  private tryGetN8nApiBaseUrl() {
+    const explicit = process.env.N8N_API_URL?.trim();
+    if (explicit) {
+      return this.normalizeUrl(explicit)?.replace(/\/$/, '') ?? null;
+    }
+
+    const candidates = [
+      process.env.N8N_WEBHOOK_URL?.trim(),
+      process.env.N8N_CLIMATE_WEBHOOK_URL?.trim(),
+    ].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      const normalized = this.normalizeUrl(candidate);
+      if (!normalized) continue;
+      try {
+        const parsed = new URL(normalized);
+        parsed.pathname = '';
+        parsed.search = '';
+        parsed.hash = '';
+        return parsed.toString().replace(/\/$/, '');
+      } catch {
+        continue;
+      }
+    }
+
+    return this.normalizeUrl('http://n8n:5678')?.replace(/\/$/, '') ?? null;
+  }
+
+  private tryGetN8nBasicAuth() {
+    const username = process.env.N8N_BASIC_AUTH_USER?.trim();
+    const password = process.env.N8N_BASIC_AUTH_PASSWORD?.trim();
+    if (!username || !password) {
+      return undefined;
+    }
+    return { username, password };
+  }
+
+  private tryGetN8nApiHeaders() {
+    const apiKey = process.env.N8N_API_KEY?.trim();
+    if (!apiKey) {
+      return undefined;
+    }
+    return { 'X-N8N-API-KEY': apiKey };
+  }
+
+  private extractWorkflows(payload: unknown): Array<Record<string, any>> {
+    if (Array.isArray(payload)) {
+      return payload.filter((item): item is Record<string, any> => Boolean(item && typeof item === 'object'));
+    }
+    if (payload && typeof payload === 'object') {
+      const data = payload as Record<string, unknown>;
+      if (Array.isArray(data.data)) {
+        return data.data.filter((item): item is Record<string, any> => Boolean(item && typeof item === 'object'));
+      }
+      if (Array.isArray(data.workflows)) {
+        return data.workflows.filter((item): item is Record<string, any> => Boolean(item && typeof item === 'object'));
+      }
+    }
+    return [];
+  }
+
+  private isClimateIngestWorkflow(workflow: Record<string, any>) {
+    if (typeof workflow.name === 'string' && workflow.name.toLowerCase().includes('clim')) {
+      return true;
+    }
+    if (!Array.isArray(workflow.nodes)) {
+      return false;
+    }
+    return workflow.nodes.some((node: any) => {
+      const path = node?.parameters?.path;
+      return typeof path === 'string' && path.trim().toLowerCase() === CLIMATE_WORKFLOW_WEBHOOK_PATH;
+    });
+  }
+
+  private extractWorkflowActive(workflow: Record<string, any>) {
+    const candidates = [workflow.active, workflow.enabled, workflow.isActive];
+    for (const value of candidates) {
+      if (typeof value === 'boolean') {
+        return value;
+      }
+    }
+    return null;
   }
 
   private normalizeUrl(value: string) {

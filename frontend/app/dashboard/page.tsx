@@ -29,6 +29,10 @@ interface AutomationOverview {
     workflowSecretConfigured: boolean
     climateWebhookConfigured: boolean
     climateWebhookUrl: string | null
+    climateWorkflowDetected?: boolean | null
+    climateWorkflowActive?: boolean | null
+    climateWorkflowName?: string | null
+    n8nStatusError?: string | null
   }
   summary: {
     total: number
@@ -448,6 +452,23 @@ export default function DashboardPage() {
               <span className="text-sm text-gray-600">Webhook climático</span>
               <span className="text-sm font-medium text-gray-900">{automation?.configuration.climateWebhookConfigured ? 'Disponible' : 'Pendiente'}</span>
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Workflow clima n8n</span>
+              <span className="text-sm font-medium text-gray-900">
+                {automation?.configuration.climateWorkflowDetected === false
+                  ? 'No detectado'
+                  : automation?.configuration.climateWorkflowActive === true
+                    ? 'Activo'
+                    : automation?.configuration.climateWorkflowActive === false
+                      ? 'Inactivo'
+                      : 'Sin verificar'}
+              </span>
+            </div>
+            {automation?.configuration.n8nStatusError && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {automation.configuration.n8nStatusError}
+              </p>
+            )}
             <div className="grid grid-cols-4 gap-2 text-center text-sm">
               <div className="rounded-xl bg-white border border-gray-200 p-3">
                 <div className="font-bold text-gray-900">{automation?.summary.completed ?? 0}</div>

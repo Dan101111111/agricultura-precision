@@ -42,17 +42,17 @@
           "number": [
             {
               "name": "lat",
-              "value": "={{ Number($json.lat ?? $json.latitude ?? -8.1159) }}"
+              "value": "={{ Number($json.lat ?? $json.body?.lat ?? $json.latitude ?? $json.body?.latitude ?? -8.1159) }}"
             },
             {
               "name": "lon",
-              "value": "={{ Number($json.lon ?? $json.lng ?? $json.longitude ?? -79.03) }}"
+              "value": "={{ Number($json.lon ?? $json.body?.lon ?? $json.lng ?? $json.body?.lng ?? $json.longitude ?? $json.body?.longitude ?? -79.03) }}"
             }
           ],
           "string": [
             {
               "name": "sensor_id",
-              "value": "={{ $json.sensor_id ?? $json.sensorId ?? 'c491ccfe-2a47-4da1-a083-4582631bf33e' }}"
+              "value": "={{ $json.sensor_id ?? $json.sensorId ?? $json.body?.sensor_id ?? $json.body?.sensorId }}"
             }
           ],
           "boolean": []
@@ -84,7 +84,7 @@
             },
             {
               "name": "appid",
-              "value": "33b7baf6ffc8177837d5e8534a47f0f3"
+              "value": "={{$env.OPENWEATHER_API_KEY}}"
             }
           ]
         }
@@ -101,7 +101,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\n\nreturn {\n  sensor_id: data.sensor_id || data.sensorId || 'c491ccfe-2a47-4da1-a083-4582631bf33e',\n  timestamp: new Date().toISOString(),\n  temperatura: data.main.temp - 273.15,\n  humedad_ambiente: data.main.humidity,\n  precipitacion: data.rain ? data.rain['1h'] || 0 : 0,\n  velocidad_viento: data.wind.speed,\n  presion_atmosferica: data.main.pressure\n};"
+        "jsCode": "const weather = $input.first().json;\nconst sensor = $(\"Set Coordinates\").first().json;\n\nconst sensorId = sensor.sensor_id || sensor.sensorId;\nif (!sensorId) {\n  throw new Error(\"sensor_id faltante en el payload\");\n}\n\nreturn {\n  sensor_id: sensorId,\n  timestamp: new Date().toISOString(),\n  temperatura: weather.main.temp - 273.15,\n  humedad_ambiente: weather.main.humidity,\n  precipitacion: weather.rain ? weather.rain['1h'] || 0 : 0,\n  velocidad_viento: weather.wind.speed,\n  presion_atmosferica: weather.main.pressure\n};"
       },
       "name": "Transform Data",
       "type": "n8n-nodes-base.code",
@@ -138,13 +138,7 @@
   "connections": {
     "Schedule Trigger": {
       "main": [
-        [
-          {
-            "node": "Set Coordinates",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Webhook Trigger": {
